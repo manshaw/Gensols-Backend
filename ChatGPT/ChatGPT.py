@@ -8,54 +8,20 @@ import os
 import threading
 import pandas as pd
 import requests
+from collections import Counter
 
 
 
 menu_items = '''
-Chicken Shawarma Wrap,
-Beef Shawarma Wrap,
-Falafel Wrap,
-Lamb Shawarma Wrap,
-Osmow’s Special Wrap,
-Chicken Kebab Wrap,
-Philly Chicken Wrap,
-Philly Cheese Steak Wrap,
-Beef Kofta Wrap,
-Beyond Steak Shawarma Wrap,
-Beyond Steak Philly Wrap,
-Chicken on the ROX,
-Chicken on the Stix,
-Half and Half Chicken,
-Beef on the stix,
-Beef on the Rox,
-Lamb on the Rox,
-Lamb on the stix,
-Falafel on the Rox,
-Falafel on the stix,
-Beyond Steak On The Rox,
-Beyond Steak™ On The Stix,
-Philly chicken on the Rox,
-Philly chicken on the stix,
-Philly Cheese steak on the Rox,
-Philly Cheese steak on the stix,
-Beyond Steak Salad,
-Chicken Salad,
-Beef Salad,
-Lamb Salad,
-Falafel Salad,
-Philly Chicken Salad,
-Philly Chicken Salad,
-Philly Cheese steak salad,
-Chicken Stix Supreme,
-Caesar Salad,
-Fattoush Salad,
-Greek Salad,
-Taboule,
-Hummus,
-Baklava,
-Brownies,
-Falafel,
-Light & vegan garlic sauce
+Chicken,
+Rice, 
+BBQ,
+Pizza,
+Burger,
+Fries,
+Pasta,
+Tacos,
+Falafel
 '''
 
 services='''
@@ -117,7 +83,7 @@ You need to analyze three dimensions: a) categories (if available), b)customer s
 These dimensions are further split into three sub dimensions: sentiment, theme, score and date of review where date is already provided in the review
 
 * categories:- here is the possible list of categories - stay WITHIN THESE CATEGORIES : separated by,: {services}, - DO NOT add anything out of provided categories list
-* menu items:- here is the possible list of menu items - you can add menu item by yourself if found in the review by not in the list of these MENU ITEMS : separated by,: {menu_items}.
+* menu items:- here is the possible list of menu items - DO NOT add menu item by yourself. Stay WITHIN THESE MENU ITEMS : separated by,: {menu_items}.
 * sentiment:- sentiment can be only be positive or negative. It MUST NOT have neutral as value.
 * theme:- one word theme, e.g crispy, juicy, expensive, friendly, unprofessional etc.
 * score:- ranging from 0 to 10. 10 being the highest. In case of menu items, this score value means user's sentiment level for example sentiment negative with value 0 means user disliked the menu item but dislikness was not too much whereas sentiment negative with value 10 means user hated the menu item and dislikeness was maximum. Same behaviour for positive sentiment as well. 
@@ -126,6 +92,7 @@ These dimensions are further split into three sub dimensions: sentiment, theme, 
 # Notes: 
     - A review may talk about multiple catagories and services aspects. Similarly, a review can only talk about category, or service. Analyze only about what is given. DO NOT MAKE THINGS UP.
     - For categories, stay with in the categories provided. DO NOT add anything out of provided categories list.
+    - For menu items, stay with in the menu items provided. DO NOT add anything out of provided menu items list.
     - Score for the 'over all' is basically the NPS of the entire review.
     - For Menu Items, Score ranges from 0 to 10 for both positve and negative sentiments individually. Negative sentiment with 10 values means user disliked the menu item very much. 
 
@@ -342,6 +309,10 @@ def final_data_cleaning(data):
                             "count":0,
                             "positive":0,
                             "negative":0,
+                            "positive_score":0,
+                            "negative_score":0,
+                            "positive_theme":[],
+                            "negative_theme":[],
                         }
 
 
@@ -369,8 +340,12 @@ def final_data_cleaning(data):
                         menu_scores[key]['count'] += 1
                         if value['sentiment'] == 'positive':
                             menu_scores[key]['positive'] += 1
+                            menu_scores[key]['positive_score'] += value['score']
+                            menu_scores[key]['positive_theme'].append(value['theme'])
                         if value['sentiment'] == 'negative':
                             menu_scores[key]['negative'] += 1
+                            menu_scores[key]['negative_score'] += value['score']
+                            menu_scores[key]['negative_theme'].append(value['theme'])
                      
 
     # Print the results
@@ -404,18 +379,194 @@ def final_data_cleaning(data):
         count = menu[1]['count']
         positive = menu[1]['positive']
         negative = menu[1]['negative']
+        positive_score = menu[1]['positive_score']
+        negative_score = menu[1]['negative_score']
+        positive_theme = menu[1]['positive_theme']
+        negative_theme = menu[1]['negative_theme']
         name = menu[0]
+        avg = score / count if count != 0 else 0
+        p_avg = positive_score / positive if positive != 0 else 0
+        n_avg = negative_score / negative if negative != 0 else 0
+        dataframe2.append({
+            "Menu Item Name": name,
+            "Average Rating": avg,
+            "Average Positive Rating": p_avg,
+            "Average Negative Rating": n_avg,
+            "Accumulated Score": score,
+            "Total Reviews":count,
+            "Positive": positive,
+            "Negative": negative, 
+            "Positive Theme": positive_theme,
+            "Negative Theme": negative_theme
+        })
+        
+    df2 = pd.DataFrame(dataframe2)
+    print(df2) 
+    res1 = generate_graph_summary(dataframe, "gpt-4o-mini")
+    res2 = generate_graph_summary(dataframe2, "gpt-4o-mini")
+    
+    return {
+        "summary": res1,
+        "data":dataframe
+    },{
+        "summary": res2,
+        "data":dataframe2
+    }
+
+def graph_55(data):
+    category_scores = {
+            "Food quality and taste":{
+                "score": 0,
+                "count":0,
+                "positive":0,
+                "negative":0,
+                },
+            "Value for money":{
+                "score": 0,
+                "count":0,
+                "positive":0,
+                "negative":0,
+                },
+            "Wait time and speed of service":{
+                "score": 0,
+                "count":0,
+                "positive":0,
+                "negative":0,
+                },
+            "Staff friendliness and attentiveness":{
+                "score": 0,
+                "count":0,
+                "positive":0,
+                "negative":0,
+                },
+            "Cleanliness and hygiene":{
+                "score": 0,
+                "count":0,
+                "positive":0,
+                "negative":0,
+                },
+            "Store atmosphere and decor":{
+                "score": 0,
+                "count":0,
+                "positive":0,
+                "negative":0,
+                },
+            "Online and mobile ordering experience":{
+                "score": 0,
+                "count":0,
+                "positive":0,
+                "negative":0,
+                },
+            "Delivery and takeout service":{
+                "score": 0,
+                "count":0,
+                "positive":0,
+                "negative":0,
+                }
+        }
+    menu_scores = {}
+
+    # Aggregate the scores
+    for entry in data:
+        response = entry['response']        
+        # Sum menu item scores
+        for menu in response.get('menu_name', []):
+            for key, value in menu.items():
+                if key not in menu_scores:
+                    menu_scores[key] = {
+                            "score": 0,
+                            "count":0,
+                            "positive":0,
+                            "negative":0,
+                            "positive_score":0,
+                            "negative_score":0,
+                            "positive_theme":[],
+                            "negative_theme":[],
+                        }
+
+
+    # Aggregate the scores
+    for entry in data:
+        response = entry['response']
+        if 'category_name' in response:
+            # Sum category scores
+            for category in response['category_name']:
+                for key, value in category.items():
+                    if key in category_scores:
+                        category_scores[key]['score'] += value['score']
+                        category_scores[key]['count'] += 1
+                        if value['sentiment'] == 'positive':
+                            category_scores[key]['positive'] += 1
+                        if value['sentiment'] == 'negative':
+                            category_scores[key]['negative'] += 1
+                     
+        if 'menu_name' in response:
+            # # Sum menu item scores
+            for menu in response.get('menu_name', []):
+                for key, value in menu.items():
+                    if key in menu_scores:
+                        menu_scores[key]['score'] += value['score']
+                        menu_scores[key]['count'] += 1
+                        if value['sentiment'] == 'positive':
+                            menu_scores[key]['positive'] += 1
+                            menu_scores[key]['positive_score'] += value['score']
+                            menu_scores[key]['positive_theme'].append(value['theme'])
+                        if value['sentiment'] == 'negative':
+                            menu_scores[key]['negative'] += 1
+                            menu_scores[key]['negative_score'] += value['score']
+                            menu_scores[key]['negative_theme'].append(value['theme'])
+                     
+
+    # Print the results
+    dataframe = []
+    for category in category_scores.items():
+        score = category[1]['score']
+        count = category[1]['count']
+        positive = category[1]['positive']
+        negative = category[1]['negative']
+        name = category[0]
         if count !=0:
             avg = score/count
         else:
             avg = 0
-        dataframe2.append({
-            "Menu Item Name": name,
+        dataframe.append({
+            "Category Name": name,
             "Average Rating": avg,
             "Accumulated Score": score,
             "Total Reviews":count,
             "Positive": positive,
             "Negative": negative, 
+        })
+
+
+    df = pd.DataFrame(dataframe)
+    print(df)
+        
+    dataframe2 = []
+    for menu in menu_scores.items():
+        score = menu[1]['score']
+        count = menu[1]['count']
+        positive = menu[1]['positive']
+        negative = menu[1]['negative']
+        positive_score = menu[1]['positive_score']
+        negative_score = menu[1]['negative_score']
+        positive_theme = menu[1]['positive_theme']
+        negative_theme = menu[1]['negative_theme']
+        name = menu[0]
+        avg = score / count if count != 0 else 0
+        p_avg = positive_score / positive if positive != 0 else 0
+        n_avg = negative_score / negative if negative != 0 else 0
+        dataframe2.append({
+            "Menu Item Name": name,
+            "Average Rating": avg,
+            "Average Positive Rating": p_avg,
+            "Average Negative Rating": n_avg,
+            "Accumulated Score": score,
+            "Total Reviews":count,
+            "Positive": positive,
+            "Negative": negative, 
+            "Positive Theme": positive_theme,
+            "Negative Theme": negative_theme
         })
         
     df2 = pd.DataFrame(dataframe2)
@@ -482,7 +633,7 @@ def group_by_month_and_year(data):
     result = df.to_dict(orient='records')
     return result
 
-def graph_1(data):
+def graph_2(data):
     response = []
     average = 0
     # Aggregate the scores
@@ -505,7 +656,7 @@ def graph_1(data):
         "data":grouped_data
     }
 
-def graph_11(data):
+def graph_1(data):
     response = []
     average = 0
     # Aggregate the scores
@@ -521,11 +672,25 @@ def graph_11(data):
         # Sort data based on the date
         sorted_data = sorted(response, key=parse_date)
         grouped_data = group_by_month_and_year(sorted_data)
+        # Create a DataFrame
+        df = pd.DataFrame(grouped_data)
+
+        # Create a dictionary to maintain the order of first occurrence
+        order = df['month'].unique()
+
+        # Group by 'month' and calculate the average rating
+        df_grouped = df.groupby('month').agg({'rating': 'mean'}).reset_index()
+
+        # Reorder the DataFrame based on the original order
+        df_grouped = df_grouped.set_index('month').reindex(order).reset_index()
+
+        # Convert DataFrame to a dictionary
+        df_grouped_dict = df_grouped.to_dict(orient='records')
         
     return {
         "average_rating": average/len(data),
         "summary":generate_graph_summary(sorted_data, "gpt-4o-mini"),
-        "data":grouped_data
+        "data": df_grouped_dict
     }
 
 def parse_date(item):
@@ -652,7 +817,7 @@ def month_wise_aggregation_for_graph_5(data, month):
         response[entry] = next((item['rating'] for item in data[entry]["data"] if item['month'] == month),0)
     return response
     
-def graph_5(data):  
+def graph_8(data):  
     info = [
         month_wise_aggregation_for_graph_5(data, "January"),
         month_wise_aggregation_for_graph_5(data, "February"),
@@ -674,3 +839,35 @@ def graph_5(data):
         "data": info
     }
     
+# Function to format theme counts into the desired structure
+def format_data_for_tree_graph(data):
+    # Count occurrences of each theme
+    positive_counts = Counter(data["Positive Theme"])
+    negative_counts = Counter(data["Negative Theme"])
+    
+    # Convert counts to the desired format
+    positive_children = [{"name": theme, "size": count * 10} for theme, count in positive_counts.items()]
+    negative_children = [{"name": theme, "size": count * 10} for theme, count in negative_counts.items()]
+    
+    return [
+        {"name": "positive", "children": positive_children},
+        {"name": "negative", "children": negative_children}
+    ]
+    
+def graph_6(data):
+    highest_rated_item = max(data, key=lambda x: x["Average Rating"])
+    formatted_data = format_data_for_tree_graph(highest_rated_item)
+    summary = generate_graph_summary(formatted_data,"gpt-4o-mini")
+    return {
+        "summary": summary,
+        "data": formatted_data
+    }
+
+def graph_7(data):
+    lowest_rated_item = min(data, key=lambda x: x["Average Rating"])
+    formatted_data = format_data_for_tree_graph(lowest_rated_item)
+    summary = generate_graph_summary(formatted_data,"gpt-4o-mini")
+    return {
+        "summary": summary,
+        "data": formatted_data
+    }
