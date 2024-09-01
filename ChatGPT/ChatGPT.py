@@ -462,6 +462,26 @@ def group_by_month(data):
     sorted_data = sorted(result, key=lambda x: month_index[x["month"]])
     return sorted_data
 
+def group_by_month_and_year(data):
+    # Create a DataFrame from the data
+    df = pd.DataFrame(data)
+
+    # Convert the 'date' column to datetime format
+    df['date'] = pd.to_datetime(df['date'], format='%d-%m-%Y')
+
+    # Extract year and month, and format them as "MonYY"
+    df['month'] = df['date'].dt.strftime('%b%y').replace({'Jan': 'Jan', 'Feb': 'Feb', 'Mar': 'Mar', 'Apr': 'Apr', 'May': 'May', 'Jun': 'Jun', 'Jul': 'Jul', 'Aug': 'Aug', 'Sep': 'Sep', 'Oct': 'Oct', 'Nov': 'Nov', 'Dec': 'Dec'})
+
+    # Drop the original 'date' column
+    df = df.drop(columns=['date'])
+
+    # Reorder columns to match the desired output
+    df = df[['rating', 'month']]
+
+    # Convert the DataFrame to a list of dictionaries
+    result = df.to_dict(orient='records')
+    return result
+
 def graph_1(data):
     response = []
     average = 0
@@ -478,6 +498,29 @@ def graph_1(data):
         # Sort data based on the date
         sorted_data = sorted(response, key=parse_date)
         grouped_data = group_by_month(sorted_data)
+        
+    return {
+        "average_rating": average/len(data),
+        "summary":generate_graph_summary(sorted_data, "gpt-4o-mini"),
+        "data":grouped_data
+    }
+
+def graph_11(data):
+    response = []
+    average = 0
+    # Aggregate the scores
+    for entry in data:
+        score = entry['response']['review_score']
+        date = entry['response']['review']['review_date']
+        average += score
+        response.append({
+            "rating": score,
+            "date": date
+        })
+
+        # Sort data based on the date
+        sorted_data = sorted(response, key=parse_date)
+        grouped_data = group_by_month_and_year(sorted_data)
         
     return {
         "average_rating": average/len(data),
